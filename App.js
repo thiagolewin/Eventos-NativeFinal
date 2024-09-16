@@ -1,12 +1,16 @@
-import * as React from 'react';
-import { Button, Text, View, StyleSheet } from 'react-native';
-import { useState, useEffect } from 'react';
-import { NavigationContainer, useNavigation } from '@react-navigation/native';
+// App.js
+import React, { useState, useEffect } from 'react';
+import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as SplashScreen from 'expo-splash-screen';
+import { UserProvider, useUser } from './UserContext.js'; // Ajusta la ruta si es necesario
+import { StyleSheet, View, Text, Button } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import LoginScreen from './LoginScreen';
+import RegisterScreen from './RegisterScreen';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -21,7 +25,11 @@ function ScreenA1({ eventos }) {
       <Text style={styles.description}>Todos los eventos pasados y nuevos</Text>
       {eventos && eventos.length > 0 ? (
         eventos.map((element, index) => (
-          <Button title={element.name} key={index} onPress={() => navigation.navigate('Evento',{item: element})}></Button>
+          <Button
+            title={element.name}
+            key={index}
+            onPress={() => navigation.navigate('Evento', { item: element })}
+          />
         ))
       ) : (
         <Text>No hay eventos disponibles.</Text>
@@ -30,30 +38,64 @@ function ScreenA1({ eventos }) {
   );
 }
 
- function ScreenA2({route}) {
-  const [participantes, setParticipantes] = useState([]); // State for participants
-  const [loading, setLoading] = useState(true); // Loading state
-  const [error, setError] = useState(null); // Error state
+function ScreenA2({ route }) {
+  const [participantes, setParticipantes] = useState([]);
+  const [changePart, setChangePart] = useState(null)
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const navigation = useNavigation();
   const { item } = route.params;
+  const {user} = useUser()
+  const fechaActual = new Date();
   useEffect(() => {
     const fetchParticipants = async () => {
       try {
-        const response = await fetch("https://57d0-200-73-176-50.ngrok-free.app/api/event/enrollments/" + item.id);
-        if (!response.ok) {
-          throw new Error(`Error: ${response.status}`);
-        }
+        const response = await fetch(
+          'https://b31a-200-73-176-50.ngrok-free.app/api/event/enrollments/' + item.id
+        );
         const data = await response.json();
-        setParticipantes(data);  // Update participants state
-      } catch (error) {
-        setError(error.message);  // Set error state if something goes wrong
-      } finally {
-        setLoading(false);  // Mark loading as complete
+        console.log(data)
+        setParticipantes(data);
+        }finally {
+        setLoading(false);
       }
     };
-    
-    fetchParticipants();  // Trigger the fetch
-  }, []); 
+
+    fetchParticipants();
+  }, [item.id,changePart]);
+  const Desuscribirse = async(id)=> {
+    try {
+      const response = await fetch("https://b31a-200-73-176-50.ngrok-free.app/api/event/" + id+"/enrollment", { // Cambia la URL
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${user.token}`, // Agrega el token Bearer aquí
+      },})
+      if (!response.ok) {
+        throw new Error(`Error: ${response.status}`);
+      } 
+      setChangePart(response)
+    } catch (error) {
+      
+    }
+  }
+  const Suscribirse = async (id)=> {
+    try {
+      const response = await fetch("https://b31a-200-73-176-50.ngrok-free.app/api/event/" + id+"/enrollment", { // Cambia la URL
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${user.token}`, // Agrega el token Bearer aquí
+      },})
+      if (!response.ok) {
+        throw new Error(`Error: ${response.status}`);
+      } 
+      setChangePart(response)
+    }
+    catch {
+
+    }
+  }
   if (loading) {
     return <Text>Loading...</Text>;
   }
@@ -69,7 +111,7 @@ function ScreenA1({ eventos }) {
       <Text style={styles.text}>Price: {item.price}</Text>
       <View style={{ height: 20 }} />
       <Text style={styles.title}>Listado Participantes</Text>
-      {participantes.length > 0 ? (
+      {participantes != "Array vacio" ? (
         participantes.map((element, index) => (
           <View key={index} style={styles.participant}>
             <Text>Username: {element.username}</Text>
@@ -79,7 +121,7 @@ function ScreenA1({ eventos }) {
       ) : (
         <Text>No hay Participantes.</Text>
       )}
-
+      {new Date(item.start_date)<fechaActual? <></> : <View><Button title='Suscribirse' onPress={()=>Suscribirse(item.id)}></Button><Button title='Desuscribirse' onPress={()=>Desuscribirse(item.id)}></Button></View> }
       <Button title="Ir A Home" onPress={() => navigation.navigate('ListadoTotal')} />
     </View>
   );
@@ -96,20 +138,37 @@ function StackANavigator({ eventos }) {
   );
 }
 
+function AuthStack() {
+  return (
+    <Stack.Navigator>
+      <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Screen name="Register" component={RegisterScreen} />
+    </Stack.Navigator>
+  );
+}
+
 function MyTabs({ eventos }) {
+  const { user } = useUser();
+
   return (
     <Tab.Navigator>
-      <Tab.Screen
-        name="Home"
-        options={{
-          tabBarIcon: ({ color }) => <Ionicons name="home" size={24} color={color} />,
-        }}
-      >
-        {(props) => <StackANavigator {...props} eventos={eventos} />}
-      </Tab.Screen>
+      {user ? (
+        <Tab.Screen
+          name="Home"
+          options={{
+            tabBarIcon: ({ color }) => <Ionicons name="home" size={24} color={color} />,
+          }}
+        >
+          {(props) => <StackANavigator {...props} eventos={eventos} />}
+        </Tab.Screen>
+      ) : (
+        <Tab.Screen name="Auth" component={AuthStack} />
+      )}
     </Tab.Navigator>
   );
 }
+
+
 
 export default function App() {
   const [isReady, setIsReady] = useState(false);
@@ -119,7 +178,7 @@ export default function App() {
     const prepareApp = async () => {
       try {
         // Realiza el fetch de los eventos
-        const response = await fetch('https://57d0-200-73-176-50.ngrok-free.app/api/event');
+        const response = await fetch('https://b31a-200-73-176-50.ngrok-free.app/api/event');
         const data = await response.json();
         setEventos(data); // Guarda los datos en el estado
         setIsReady(true); // Marca la aplicación como lista
@@ -137,11 +196,13 @@ export default function App() {
   }
 
   return (
-    <SafeAreaProvider>
-      <NavigationContainer>
-        <MyTabs eventos={eventos} />
-      </NavigationContainer>
-    </SafeAreaProvider>
+    <UserProvider>
+      <SafeAreaProvider>
+        <NavigationContainer>
+          <MyTabs eventos={eventos} />
+        </NavigationContainer>
+      </SafeAreaProvider>
+    </UserProvider>
   );
 }
 
@@ -163,5 +224,23 @@ const styles = StyleSheet.create({
   description: {
     fontSize: 16,
     color: '#666',
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  input: {
+    height: 40,
+    borderColor: 'gray',
+    borderWidth: 1,
+    marginBottom: 12,
+    width: '100%',
+    paddingHorizontal: 8,
+  },
+  participant: {
+    padding: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ccc',
+    width: '100%',
   },
 });
